@@ -1,0 +1,31 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+*.class
+.Python
+env/
+venv/
+.venv
+
+# Docker
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Spark
+metastore_db/
+spark-warehouse/
+derby.log
+
+# Database
+*.db
+*.sqlite
+
+# Environment
+.env

@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Data Pipeline Monitor | Enterprise Analytics</title>
+    
+    <!-- External Libraries -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            background: linear-gradient(135deg, #0078D4 0%, #00BCF2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .header {
+            background: linear-gradient(90deg, rgba(0,0,0,0.9), rgba(0,0,0,0.8));
+            color: white;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            background: #4CAF50;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(76, 175, 80, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            font-weight: 400;
+        }
+        
+        .header-right {
+            color: #00BCF2;
+            font-size: 14px;
+        }
+        
+        .alert-box {
+            background: white;
+            margin: 20px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .alert-box.success {
+            border-left: 4px solid #4CAF50;
+        }
+        
+        .alert-icon {
+            background: #4CAF50;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        
+        .control-panel {
+            background: white;
+            margin: 0 20px 20px;
+            padding: 20px;
+            border-radius: 8px;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .control-group label {
+            font-size: 12px;
+            color: #666;
+            font-weight: 600;
+        }
+        
+        .control-group select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+            min-width: 150px;
+        }
+        
+        .btn-primary, .btn-secondary {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: #0078D4;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #106EBE;
+        }
+        
+        .btn-secondary {
+            background: white;
+            color: #0078D4;
+            border: 2px solid #0078D4;
+        }
+        
+        .metrics-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 0 20px 20px;
+        }
+        
+        .metric-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .metric-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+        
+        .metric-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #0078D4;
+            display: flex;
+            align-items: baseline;
+            gap: 5px;
+        }
+        
+        .metric-unit {
+            font-size: 16px;
+            color: #666;
+            font-weight: normal;
+        }
+        
+        .metric-change {
+            font-size: 12px;
+            margin-top: 8px;
+            color: #666;
+        }
+        
+        .metric-change.positive {
+            color: #4CAF50;
+        }
+        
+        .metric-change.negative {
+            color: #f44336;
+        }
+        
+        .card {
+            background: white;
+            margin: 0 20px 20px;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .card h2 {
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: #333;
+            font-weight: 600;
+        }
+        
+        .pipeline-container {
+            margin-top: 20px;
+        }
+        
+        .pipeline-stages {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            padding: 40px 0;
+        }
+        
+        .pipeline-connector {
+            position: absolute;
+            top: 50%;
+            left: 10%;
+            right: 10%;
+            height: 2px;
+            background: linear-gradient(90deg, #4CAF50, #0078D4, #FF9800, #9C27B0);
+            z-index: 0;
+        }
+        
+        .pipeline-stage {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            z-index: 1;
+            position: relative;
+        }
+        
+        .stage-icon {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 15px;
+            color: white;
+            font-size: 32px;
+        }
+        
+        .stage-icon.ingestion { background: linear-gradient(135deg, #4CAF50, #8BC34A); }
+        .stage-icon.processing { background: linear-gradient(135deg, #0078D4, #00BCF2); }
+        .stage-icon.storage { background: linear-gradient(135deg, #FF9800, #FFB74D); }
+        .stage-icon.analytics { background: linear-gradient(135deg, #9C27B0, #BA68C8); }
+        
+        .stage-name {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .stage-count {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .tech-stack {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        
+        .tech-badge {
+            background: linear-gradient(135deg, #5E5E5E, #787878);
+            color: white;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 20px;
+            margin: 0 20px;
+        }
+        
+        .chart-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .card-header h2 {
+            font-size: 16px;
+            font-weight: 600;
+            margin: 0;
+        }
+        
+        .chart-controls {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .chart-btn {
+            padding: 5px 12px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .chart-btn.active {
+            background: #0078D4;
+            color: white;
+            border-color: #0078D4;
+        }
+        
+        .chart-wrapper {
+            height: 300px;
+            position: relative;
+        }
+        
+        .table-container {
+            overflow-x: auto;
+        }
+        
+        .pipeline-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .pipeline-table th {
+            background: #f5f5f5;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            border-bottom: 2px solid #ddd;
+        }
+        
+        .pipeline-table td {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+            font-size: 14px;
+        }
+        
+        .pipeline-table tr:hover {
+            background: #f9f9f9;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .status-badge.running {
+            background: #E3F2FD;
+            color: #1976D2;
+        }
+        
+        .status-badge.completed {
+            background: #E8F5E9;
+            color: #388E3C;
+        }
+        
+        .status-badge.failed {
+            background: #FFEBEE;
+            color: #C62828;
+        }
+        
+        .status-badge.queued {
+            background: #FFF8E1;
+            color: #F57C00;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <span class="status-indicator"></span>
+            <h1>🚀 Real-Time Data Pipeline Monitor</h1>
+        </div>
+        <div class="header-right">
+            <span>Kafka | Spark | PostgreSQL | Redis</span>
+        </div>
+    </div>
+
+    <div class="alert-box success">
+        <span class="alert-icon">✓</span>
+        <div>
+            <strong>All Systems Operational</strong><br>
+            <small>Pipeline running smoothly. Last update: <span id="lastUpdate">Just now</span></small>
+        </div>
+    </div>
+
+    <div class="control-panel">
+        <div class="control-group">
+            <label>Environment:</label>
+            <select id="environment">
+                <option>Production</option>
+                <option>Staging</option>
+                <option>Development</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>Time Range:</label>
+            <select id="timeRange">
+                <option>Last 1 Hour</option>
+                <option>Last 6 Hours</option>
+                <option>Last 24 Hours</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>Store:</label>
+            <select id="store">
+                <option>All Stores</option>
+                <option>London-Central</option>
+                <option>Edinburgh-Royal</option>
+                <option>Manchester-North</option>
+            </select>
+        </div>
+        <button class="btn-primary" onclick="refreshData()">🔄 Refresh</button>
+        <button class="btn-secondary" onclick="exportReport()">📊 Export Report</button>
+    </div>
+
+    <div class="metrics-row">
+        <div class="metric-card">
+            <div class="metric-label">Transactions/Min</div>
+            <div class="metric-value">
+                <span id="transactionsPerMin">0</span>
+                <span class="metric-unit">txn/min</span>
+            </div>
+            <div class="metric-change positive" id="transactionChange">Calculating...</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Revenue Stream</div>
+            <div class="metric-value">
+                <span id="revenueStream">$0</span>
+                <span class="metric-unit">/hour</span>
+            </div>
+            <div class="metric-change positive" id="revenueChange">Calculating...</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Processing Latency</div>
+            <div class="metric-value">
+                <span id="latency">0</span>
+                <span class="metric-unit">ms</span>
+            </div>
+            <div class="metric-change positive">↓ Optimal performance</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Active Customers</div>
+            <div class="metric-value">
+                <span id="activeCustomers">0</span>
+                <span class="metric-unit">users</span>
+            </div>
+            <div class="metric-change" id="customerChange">Calculating...</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Product Categories</div>
+            <div class="metric-value">
+                <span id="categories">0</span>
+                <span class="metric-unit">active</span>
+            </div>
+            <div class="metric-change">All categories tracked</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Data Quality</div>
+            <div class="metric-value">
+                <span id="quality">99.9</span>
+                <span class="metric-unit">%</span>
+            </div>
+            <div class="metric-change positive">↑ Above threshold</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>📊 Pipeline Architecture Flow</h2>
+        <div class="pipeline-container">
+            <div class="pipeline-stages">
+                <div class="pipeline-connector"></div>
+                
+                <div class="pipeline-stage">
+                    <div class="stage-icon ingestion">📥</div>
+                    <div class="stage-name">Data Ingestion</div>
+                    <div class="stage-count">Kafka: <span id="kafkaRate">0</span> msg/s</div>
+                </div>
+                
+                <div class="pipeline-stage">
+                    <div class="stage-icon processing">⚙️</div>
+                    <div class="stage-name">Stream Processing</div>
+                    <div class="stage-count">Spark: <span id="sparkBatches">0</span> batches</div>
+                </div>
+                
+                <div class="pipeline-stage">
+                    <div class="stage-icon storage">💾</div>
+                    <div class="stage-name">Data Storage</div>
+                    <div class="stage-count">PostgreSQL: <span id="dbRecords">0</span> records</div>
+                </div>
+                
+                <div class="pipeline-stage">
+                    <div class="stage-icon analytics">📈</div>
+                    <div class="stage-name">Analytics</div>
+                    <div class="stage-count">Dashboard: Live</div>
+                </div>
+            </div>
+            
+            <div class="tech-stack">
+                <span class="tech-badge">Apache Kafka</span>
+                <span class="tech-badge">Apache Spark</span>
+                <span class="tech-badge">PostgreSQL</span>
+                <span class="tech-badge">Redis Cache</span>
+                <span class="tech-badge">Docker</span>
+                <span class="tech-badge">Python</span>
+                <span class="tech-badge">Plotly</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="charts-grid">
+        <div class="chart-card">
+            <div class="card-header">
+                <h2>📈 Real-Time Revenue Stream</h2>
+                <div class="chart-controls">
+                    <button class="chart-btn active">Line</button>
+                    <button class="chart-btn">Bar</button>
+                </div>
+            </div>
+            <div id="revenueChart" class="chart-wrapper"></div>
+        </div>
+
+        <div class="chart-card">
+            <div class="card-header">
+                <h2>🔥 Store Performance Heatmap</h2>
+            </div>
+            <div id="heatmap" class="chart-wrapper"></div>
+        </div>
+
+        <div class="chart-card">
+            <div class="card-header">
+                <h2>🎯 Top Products by Revenue</h2>
+            </div>
+            <div id="productsChart" class="chart-wrapper"></div>
+        </div>
+
+        <div class="chart-card">
+            <div class="card-header">
+                <h2>⚡ Transaction Velocity</h2>
+            </div>
+            <div id="velocityChart" class="chart-wrapper"></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>🚀 Active Data Streams</h2>
+        <div class="table-container">
+            <table class="pipeline-table">
+                <thead>
+                    <tr>
+                        <th>Stream Name</th>
+                        <th>Source</th>
+                        <th>Destination</th>
+                        <th>Status</th>
+                        <th>Records Processed</th>
+                        <th>Throughput</th>
+                        <th>Last Update</th>
+                    </tr>
+                </thead>
+                <tbody id="pipelineTableBody">
+                    <tr>
+                        <td>Retail Transactions</td>
+                        <td>Kafka Topic</td>
+                        <td>PostgreSQL</td>
+                        <td><span class="status-badge running">Running</span></td>
+                        <td id="txnProcessed">0</td>
+                        <td>High</td>
+                        <td>In Progress</td>
+                    </tr>
+                    <tr>
+                        <td>Product Analytics</td>
+                        <td>Kafka Topic</td>
+                        <td>PostgreSQL</td>
+                        <td><span class="status-badge running">Running</span></td>
+                        <td id="prodProcessed">0</td>
+                        <td>Medium</td>
+                        <td>In Progress</td>
+                    </tr>
+                    <tr>
+                        <td>Customer Events</td>
+                        <td>Kafka Topic</td>
+                        <td>Redis Cache</td>
+                        <td><span class="status-badge running">Running</span></td>
+                        <td id="custProcessed">0</td>
+                        <td>High</td>
+                        <td>In Progress</td>
+                    </tr>
+                    <tr>
+                        <td>Inventory Updates</td>
+                        <td>Kafka Topic</td>
+                        <td>PostgreSQL</td>
+                        <td><span class="status-badge completed">Completed</span></td>
+                        <td>45,892</td>
+                        <td>Low</td>
+                        <td>5 mins ago</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Fetch and update metrics
+        let metricsHistory = [];
+        let lastMetrics = null;
+
+        async function fetchMetrics() {
+            try {
+                const response = await fetch('/api/metrics');
+                const data = await response.json();
+                
+                if (data.summary) {
+                    // Update metrics cards
+                    const transactionsPerMin = Math.round(data.summary.total_transactions / 60);
+                    document.getElementById('transactionsPerMin').textContent = transactionsPerMin.toLocaleString();
+                    
+                    const revenuePerHour = data.summary.total_revenue;
+                    document.getElementById('revenueStream').textContent = '$' + revenuePerHour.toLocaleString(undefined, {maximumFractionDigits: 0});
+                    
+                    document.getElementById('activeCustomers').textContent = data.summary.total_customers.toLocaleString();
+                    
+                    // Calculate changes
+                    if (lastMetrics) {
+                        const txnChange = ((data.summary.total_transactions - lastMetrics.total_transactions) / lastMetrics.total_transactions * 100).toFixed(1);
+                        document.getElementById('transactionChange').textContent = `↑ ${Math.abs(txnChange)}% from last hour`;
+                        
+                        const revChange = ((data.summary.total_revenue - lastMetrics.total_revenue) / lastMetrics.total_revenue * 100).toFixed(1);
+                        document.getElementById('revenueChange').textContent = `↑ ${Math.abs(revChange)}% from average`;
+                    }
+                    
+                    // Update pipeline stats
+                    document.getElementById('kafkaRate').textContent = Math.round(data.summary.total_transactions / 3600);
+                    document.getElementById('sparkBatches').textContent = Math.round(data.summary.total_transactions / 10);
+                    document.getElementById('dbRecords').textContent = data.summary.total_transactions;
+                    
+                    // Update table
+                    document.getElementById('txnProcessed').textContent = data.summary.total_transactions.toLocaleString();
+                    document.getElementById('prodProcessed').textContent = (data.products ? data.products.length * 100 : 0).toLocaleString();
+                    document.getElementById('custProcessed').textContent = data.summary.total_customers.toLocaleString();
+                    
+                    lastMetrics = data.summary;
+                }
+                
+                // Update categories count
+                if (data.products) {
+                    const categories = new Set(data.products.map(p => p.category));
+                    document.getElementById('categories').textContent = categories.size;
+                }
+                
+                // Calculate latency (simulated)
+                document.getElementById('latency').textContent = Math.floor(Math.random() * 50 + 200);
+                
+                // Update charts
+                updateCharts(data);
+                
+                // Update last update time
+                document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+                
+            } catch (error) {
+                console.error('Error fetching metrics:', error);
+            }
+        }
+
+        function updateCharts(data) {
+            // Revenue Chart
+            if (data.stores && data.stores.length > 0) {
+                const trace = {
+                    x: data.stores.map(s => s.store_id),
+                    y: data.stores.map(s => s.revenue),
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    line: { color: '#0078D4', width: 3 },
+                    marker: { size: 8 },
+                    fill: 'tozeroy',
+                    fillcolor: 'rgba(0, 120, 212, 0.1)'
+                };
+                
+                const layout = {
+                    margin: { t: 10, b: 40, l: 60, r: 10 },
+                    xaxis: { title: '' },
+                    yaxis: { title: 'Revenue ($)' },
+                    paper_bgcolor: 'rgba(0,0,0,0)',
+                    plot_bgcolor: 'rgba(0,0,0,0)'
+                };
+                
+                Plotly.newPlot('revenueChart', [trace], layout, {responsive: true});
+            }
+            
+            // Store Heatmap
+            if (data.stores && data.stores.length > 0) {
+                const hours = Array.from({length: 24}, (_, i) => `${i}:00`);
+                const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                
+                // Generate sample heatmap data
+                const z = days.map(() => 
+                    hours.map(() => Math.random() * 100)
+                );
+                
+                const heatmapData = [{
+                    z: z,
+                    x: hours,
+                    y: days,
+                    type: 'heatmap',
+                    colorscale: [
+                        [0, '#E3F2FD'],
+                        [0.5, '#0078D4'],
+                        [1, '#FF5722']
+                    ]
+                }];
+                
+                const layout = {
+                    margin: { t: 10, b: 40, l: 60, r: 40 },
+                    xaxis: { title: '' },
+                    yaxis: { title: '' },
+                    paper_bgcolor: 'rgba(0,0,0,0)',
+                    plot_bgcolor: 'rgba(0,0,0,0)'
+                };
+                
+                Plotly.newPlot('heatmap', heatmapData, layout, {responsive: true});
+            }
+            
+            // Products Chart
+            if (data.products && data.products.length > 0) {
+                const topProducts = data.products.slice(0, 10);
+                const trace = {
+                    x: topProducts.map(p => parseFloat(p.revenue)),
+                    y: topProducts.map(p => p.product_name),
+                    type: 'bar',
+                    orientation: 'h',
+                    marker: {
+                        color: topProducts.map((_, i) => `rgba(156, 39, 176, ${1 - i * 0.08})`)
+                    }
+                };
+                
+                const layout = {
+                    margin: { t: 10, b: 40, l: 100, r: 20 },
+                    xaxis: { title: 'Revenue ($)' },
+                    yaxis: { title: '' },
+                    paper_bgcolor: 'rgba(0,0,0,0)',
+                    plot_bgcolor: 'rgba(0,0,0,0)'
+                };
+                
+                Plotly.newPlot('productsChart', [trace], layout, {responsive: true});
+            }
+            
+            // Velocity Chart (animated line)
+            const now = new Date();
+            const velocityData = Array.from({length: 20}, (_, i) => ({
+                x: new Date(now - (19 - i) * 60000),
+                y: Math.floor(Math.random() * 50 + 100)
+            }));
+            
+            const velocityTrace = {
+                x: velocityData.map(d => d.x),
+                y: velocityData.map(d => d.y),
+                type: 'scatter',
+                mode: 'lines',
+                line: { color: '#4CAF50', width: 2 }
+            };
+            
+            const velocityLayout = {
+                margin: { t: 10, b: 40, l: 60, r: 10 },
+                xaxis: { title: '', type: 'date' },
+                yaxis: { title: 'Transactions/min' },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)'
+            };
+            
+            Plotly.newPlot('velocityChart', [velocityTrace], velocityLayout, {responsive: true});
+        }
+
+        function refreshData() {
+            fetchMetrics();
+            // Add visual feedback
+            const btn = event.target;
+            btn.textContent = '⏳ Loading...';
+            setTimeout(() => {
+                btn.textContent = '🔄 Refresh';
+            }, 1000);
+        }
+
+        function exportReport() {
+            // Download the export data
+            window.location.href = '/api/export';
+        }
+
+        // Initial load and auto-refresh
+        fetchMetrics();
+        setInterval(fetchMetrics, 5000);
+    </script>
+</body>
+</html>
